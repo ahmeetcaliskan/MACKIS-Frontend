@@ -1,17 +1,19 @@
+import { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Bot, User, CheckCircle2 } from "lucide-react";
 import { Badge } from "./ui/badge";
-import { SourceReference } from "../lib/mockData";
-import { SourceCard } from "./SourceCard";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
-import { useState } from "react";
+
+// ✅ Import SourceCard and the Type from the file we just updated
+import { SourceCard, SourceReference } from "./SourceCard";
 
 interface ChatMessageProps {
-  key?: string;
   role: "user" | "assistant";
   content: string;
   timestamp?: string;
-  sources?: SourceReference[];
+  sources?: SourceReference[]; // Now using the shared type
   confidence?: number;
 }
 
@@ -19,11 +21,11 @@ export function ChatMessage({ role, content, timestamp, sources, confidence }: C
   const isAssistant = role === "assistant";
   const [sourcesOpen, setSourcesOpen] = useState(false);
 
+  // Helper to display confidence score
   const getConfidenceBadge = () => {
     if (!confidence) return null;
     
     const percentage = Math.round(confidence * 100);
-    let variant: "default" | "secondary" | "outline" = "default";
     let color = "";
     
     if (percentage >= 90) {
@@ -43,33 +45,55 @@ export function ChatMessage({ role, content, timestamp, sources, confidence }: C
   };
 
   return (
-    <div className={`flex gap-4 p-6 ${isAssistant ? "bg-muted/30" : ""}`}>
-      <Avatar className="h-9 w-9 shrink-0">
-        <AvatarFallback className={isAssistant ? "bg-blue-600 text-white" : "bg-secondary"}>
-          {isAssistant ? <Bot className="h-4 w-4" /> : <User className="h-4 w-4" />}
+    <div className={`flex gap-4 p-6 transition-colors ${isAssistant ? "bg-muted/30" : "bg-background"}`}>
+      <Avatar className="h-9 w-9 shrink-0 shadow-sm">
+        <AvatarFallback className={isAssistant ? "bg-blue-600 text-white" : "bg-slate-200 dark:bg-slate-700"}>
+          {isAssistant ? <Bot className="h-5 w-5" /> : <User className="h-5 w-5" />}
         </AvatarFallback>
       </Avatar>
+
       <div className="flex-1 space-y-3 max-w-4xl">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm">{isAssistant ? "University AI Assistant" : "You"}</span>
+          <span className="font-semibold text-sm text-foreground">
+            {isAssistant ? "University AI Assistant" : "You"}
+          </span>
           {timestamp && (
             <span className="text-xs text-muted-foreground">{timestamp}</span>
           )}
           {isAssistant && getConfidenceBadge()}
         </div>
-        <div className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
-          {content}
+
+        <div className="text-sm text-foreground/90 leading-relaxed prose dark:prose-invert max-w-none">
+          {isAssistant ? (
+            <ReactMarkdown 
+              remarkPlugins={[remarkGfm]}
+              components={{
+                a: ({node, ...props}) => <a {...props} className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer" />,
+                code: ({node, ...props}) => <code {...props} className="bg-muted px-1 py-0.5 rounded text-xs font-mono" />
+              }}
+            >
+              {content}
+            </ReactMarkdown>
+          ) : (
+            <span className="whitespace-pre-wrap">{content}</span>
+          )}
         </div>
         
+        {/* Sources Section */}
         {isAssistant && sources && sources.length > 0 && (
-          <Collapsible open={sourcesOpen} onOpenChange={setSourcesOpen}>
-            <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-              <span>📚 {sources.length} source{sources.length > 1 ? 's' : ''} referenced</span>
-              <span className="text-xs">{sourcesOpen ? '▼' : '▶'}</span>
+          <Collapsible open={sourcesOpen} onOpenChange={setSourcesOpen} className="mt-4">
+            <CollapsibleTrigger className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-primary transition-colors group">
+              <div className="flex items-center gap-1.5 bg-muted/50 px-2 py-1 rounded-md border border-transparent group-hover:border-border">
+                <span>📚 Referenced {sources.length} document{sources.length > 1 ? 's' : ''}</span>
+                <span className="text-[10px] opacity-70 transition-transform duration-200" style={{ transform: sourcesOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                  ▼
+                </span>
+              </div>
             </CollapsibleTrigger>
-            <CollapsibleContent className="mt-3 space-y-2">
+            
+            <CollapsibleContent className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 animate-in slide-in-from-top-2 fade-in duration-200">
               {sources.map((source, index) => (
-                <div key={index}></div>
+                <SourceCard key={index} source={source} index={index} />
               ))}
             </CollapsibleContent>
           </Collapsible>

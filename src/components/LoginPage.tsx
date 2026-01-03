@@ -8,8 +8,11 @@ import { Mail, Lock, LogIn, UserPlus } from "lucide-react";
 import sabancıLogo from "../assets/sabanci_logo.png";
 import React from 'react';
 
+// 1. Import our new "Smart Courier" (Axios Instance)
+import api from "../api/axios";
+
 interface LoginPageProps {
-  onLogin: (email: string, name: string) => void;
+  onLogin: (email: string, name: string, isAdmin: boolean) => void;
 }
 
 export function LoginPage({ onLogin }: LoginPageProps) {
@@ -18,12 +21,14 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [name, setName] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // 2. Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    // Basic validation
+    // Basic Validations
     if (!email || !password) {
       setError("Please fill in all fields");
       return;
@@ -34,16 +39,62 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       return;
     }
 
-    // Simple email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       setError("Please enter a valid email address");
       return;
     }
 
-    // For demo purposes, accept any valid email/password combination
-    const userName = isSignUp ? name : email.split("@")[0];
-    onLogin(email, userName);
+    setIsLoading(true);
+
+    try {
+      if (isSignUp) {
+        // We haven't implemented the /register endpoint in the backend yet.
+        // Blocking registration for now.
+        throw new Error("Registration is currently invite-only. Please use the provided admin account.");
+      }
+
+      // 3. ACTUAL BACKEND REQUEST (Using Axios)
+      // We don't need to manually add headers or full URL; 'api' handles it.
+      const response = await api.post("/auth/login", {
+        email: email,
+        password: password
+      });
+
+      // Axios wraps the actual backend response inside the .data property
+      const data = response.data;
+
+      // 4. Save the Token
+      // IMPORTANT: We use 'access_token' as the key name because our 
+      // api/axios.js interceptor looks specifically for localStorage.getItem('access_token')
+      localStorage.setItem("access_token", data.access_token);
+
+      // Pass user details to the parent component
+      // We handle the case where 'is_admin' might be missing or named differently
+      onLogin(
+        email,
+        data.user_name,
+        data.is_admin || data.role === "admin" || false
+      );
+
+    } catch (err: any) {
+      console.error("Login Error:", err);
+      
+      // 5. Improved Error Handling for Axios
+      // Axios stores the server response error details in err.response
+      if (err.response) {
+        // Backend usually sends error details in { detail: "..." }
+        setError(err.response.data.detail || "Invalid credentials.");
+      } else if (err.request) {
+        // The request was made but no response was received (Network Error)
+        setError("Cannot connect to server. Is the backend running?");
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        setError(err.message || "An unexpected error occurred.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -69,7 +120,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           <div className="space-y-4">
             <p className="text-muted-foreground leading-relaxed">
               Our AI assistant provides accurate, source-backed answers by searching through 
-              over 2,847 official university documents, handbooks, and databases. Every response 
+              official university documents, handbooks, and databases. Every response 
               includes citations to the original sources, ensuring transparency and reliability.
             </p>
             
@@ -103,7 +154,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           </div>
 
           {error && (
-            <Alert className="mb-4 border-destructive/50 text-destructive">
+            <Alert className="mb-4 border-destructive/50 text-destructive bg-destructive/10">
               {error}
             </Alert>
           )}
@@ -121,6 +172,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="pl-10"
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -137,6 +189,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10"
+                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -152,12 +205,19 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-10"
+                  disabled={isLoading}
                 />
               </div>
             </div>
 
-            <Button type="submit" className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
-              {isSignUp ? (
+            <Button 
+              type="submit" 
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                "Processing..."
+              ) : isSignUp ? (
                 <>
                   <UserPlus className="h-4 w-4 mr-2" />
                   Create Account
@@ -179,6 +239,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 setError("");
               }}
               className="text-sm text-muted-foreground hover:text-primary transition-colors"
+              disabled={isLoading}
             >
               {isSignUp ? (
                 <>Already have an account? <span className="text-primary">Sign in</span></>
@@ -194,7 +255,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               and privacy policy
             </p>
             <p className="text-xs text-blue-600 dark:text-blue-400">
-              💡 Tip: Use an email with "admin" to access the admin dashboard
+              💡 Tip: Use your created account (e.g. admin@sabanci.edu)
             </p>
           </div>
         </Card>
