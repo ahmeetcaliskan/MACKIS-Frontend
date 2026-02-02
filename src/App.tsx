@@ -101,42 +101,54 @@ export default function App() {
     setIsTyping(true);
 
     try {
-      // 3. ✅ SEND API REQUEST (Connects to Real Backend)
-      const data = await sendMessageToRAG(content);
+      // 3. Parse numeric conversation ID if possible (backend expects number)
+      const numericConvId = currentConversationId.startsWith('new-')
+        ? undefined
+        : parseInt(currentConversationId, 10) || undefined;
 
-      // 4. ✅ CREATE AI RESPONSE OBJECT
+      // 4. SEND API REQUEST (Connects to Real Backend)
+      const data = await sendMessageToRAG(content, numericConvId);
+
+      // 5. CREATE AI RESPONSE OBJECT
       const aiResponse: Message = {
         id: `${currentConversationId}-${Date.now()}-ai`,
         role: "assistant",
         content: data.answer,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        
+
         // Map Backend response to Frontend 'SourceReference' type
         sources: data.sources?.map((src) => ({
-            filename: src.filename,
-            page_number: src.page_number,
+            chunk_id: src.chunk_id,
+            title: src.title,
+            excerpt: src.excerpt,
             score: src.score,
-            content: src.content
+            url: src.url
         })) || [],
-        
+
         confidence: data.confidence || 0.95,
       };
 
-      // 5. Update UI with the AI's answer
+      // 6. Update UI with the AI's answer and sync conversation ID from backend
+      const backendConvId = data.conversation_id?.toString() || currentConversationId;
+
       setConversations((prev) =>
         prev.map((conv) =>
           conv.id === currentConversationId
-            ? { 
-                ...conv, 
+            ? {
+                ...conv,
+                id: backendConvId,
                 messages: [...conv.messages, aiResponse],
               }
             : conv
         )
       );
+
+      // Update current conversation ID if backend assigned a new one
+      if (backendConvId !== currentConversationId) {
+        setCurrentConversationId(backendConvId);
+      }
     } catch (error) {
       console.error("Failed to send message:", error);
-      
-      // Optional: You could add an error message bubble here if you want
     } finally {
       // Always stop the loading animation
       setIsTyping(false);

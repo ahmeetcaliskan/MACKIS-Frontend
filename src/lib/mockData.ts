@@ -27,7 +27,7 @@ export const categories = [
   { id: "financial", label: "Financial Aid", icon: "💰" },
 ];
 
-// Updated mock conversations with NEW source structure (filename, score)
+// Updated mock conversations with backend-compatible source structure
 export const mockConversations: ConversationData[] = [
   {
     id: "1",
@@ -50,16 +50,18 @@ export const mockConversations: ConversationData[] = [
         confidence: 0.98,
         sources: [
           {
-            filename: "Erasmus_Yonergeleri_2024.pdf",
-            page_number: 12,
+            chunk_id: 1,
+            title: "Erasmus Yonergeleri 2024",
+            excerpt: "Undergraduate students typically need a minimum CGPA of 2.20...",
             score: 0.95,
-            content: "Undergraduate students typically need a minimum CGPA of 2.20..."
+            url: undefined
           },
           {
-            filename: "Student_Handbook_2023.pdf",
-            page_number: 45,
+            chunk_id: 2,
+            title: "Student Handbook 2023",
+            excerpt: "Exchange program eligibility criteria include academic standing...",
             score: 0.88,
-            content: "Exchange program eligibility criteria include academic standing..."
+            url: undefined
           }
         ]
       }

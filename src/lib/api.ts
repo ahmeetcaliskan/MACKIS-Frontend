@@ -1,22 +1,41 @@
 import api from "../api/axios";
 
-// Define the response type for the RAG endpoint
-export interface RAGResponse {
-  answer: string;
-  sources: Array<{
-    filename: string;
-    page_number?: number;
-    score?: number;
-    content?: string;
-  }>;
-  confidence?: number;
-  // backend also sends 'query_id', 'intent' etc. if needed
+// Define the source reference type from backend
+export interface SourceReference {
+  chunk_id: number;
+  title: string;
+  excerpt: string;
+  score?: number;
+  url?: string;
 }
 
-// 1. Function to send message to Backend
-export const sendMessageToRAG = async (message: string): Promise<RAGResponse> => {
-  // Backend expects: { "query": "Your question here" }
-  const response = await api.post("/chat/", { query: message });
+// Define the response type for the RAG endpoint (matches backend ChatResponse schema)
+export interface RAGResponse {
+  answer: string;
+  sources: SourceReference[];
+  conversation_id: number;
+  query_id: number;
+  message_id: number;
+  confidence: number;
+}
+
+// Define the chat request type
+export interface ChatRequest {
+  query: string;
+  conversation_id?: number;
+  user_id?: string;
+}
+
+// Function to send message to Backend RAG system
+export const sendMessageToRAG = async (
+  message: string,
+  conversationId?: number
+): Promise<RAGResponse> => {
+  const payload: ChatRequest = { query: message };
+  if (conversationId) {
+    payload.conversation_id = conversationId;
+  }
+  const response = await api.post("/chat", payload);
   return response.data;
 };
 
@@ -26,14 +45,16 @@ export const fetchChatHistory = async () => {
   return response.data; // Returns the list of conversations from the backend
 };
 
-// 2. Export the login function (from previous steps) here as well to keep things organized
-export const loginUser = async (email: string, password: string) => {
-  const formData = new URLSearchParams();
-  formData.append('username', email);
-  formData.append('password', password);
-  
-  const response = await api.post('/auth/login', formData, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-  });
+// Define the login response type
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+  user_name: string;
+  is_admin: boolean;
+}
+
+// Login function - sends JSON to /auth/login
+export const loginUser = async (email: string, password: string): Promise<LoginResponse> => {
+  const response = await api.post('/auth/login', { email, password });
   return response.data;
 };
