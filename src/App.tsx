@@ -33,15 +33,45 @@ export default function App() {
         try {
           // Fetch data from the backend
           const history = await fetchChatHistory();
-          
-          // Update state if history exists
-          if (history && history.length > 0) {
-             setConversations(history);
-             // Select the most recent conversation by default
-             setCurrentConversationId(history[0].id);
+          console.log("[History] Raw response from backend:", history);
+
+          // Normalize backend response:
+          // 1. Convert numeric ids to strings (backend: number, frontend state: string)
+          // 2. Convert ISO timestamps to human-readable labels so the sidebar
+          //    grouping logic (which checks for "Today" / "day ago") works correctly
+          const normalize = (isoString: string): string => {
+            const date = new Date(isoString);
+            if (isNaN(date.getTime())) return isoString; // not a valid date, pass through
+            const now = new Date();
+            const diffDays = Math.floor(
+              (now.setHours(0,0,0,0) - new Date(date).setHours(0,0,0,0)) /
+              (1000 * 60 * 60 * 24)
+            );
+            if (diffDays === 0) return `Today at ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+            if (diffDays === 1) return "1 day ago";
+            if (diffDays < 7)   return `${diffDays} days ago`;
+            return date.toLocaleDateString();
+          };
+
+          const mapped: ConversationData[] = (history as any[]).map((conv) => ({
+            ...conv,
+            id: String(conv.id),               // number → string
+            timestamp: normalize(conv.timestamp),
+            messages: (conv.messages ?? []).map((msg: any) => ({
+              ...msg,
+              id: String(msg.id),              // number → string
+            })),
+          }));
+
+          console.log("[History] Mapped conversations:", mapped);
+          setConversations(mapped);
+
+          // Only select a conversation if history is non-empty
+          if (mapped.length > 0) {
+            setCurrentConversationId(mapped[0].id);
           }
         } catch (error) {
-          console.error("Error loading chat history:", error);
+          console.error("[History] Error loading chat history:", error);
         }
       }
     };
