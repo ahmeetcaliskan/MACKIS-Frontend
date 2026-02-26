@@ -1,4 +1,4 @@
-import { useState, useEffect} from "react";
+import { useState } from "react";
 import { SidebarProvider, SidebarTrigger } from "./components/ui/sidebar";
 import { ConversationSidebar } from "./components/ConversationSidebar";
 import { ChatInput } from "./components/ChatInput";
@@ -14,8 +14,7 @@ import {  Message, ConversationData, categories } from "./lib/mockData";
 import { Sparkles, Search, Brain, LogOut } from "lucide-react";
 import { Card } from "./components/ui/card";
 import { ChatMessage,} from "./components/ChatMessage"; 
-import { sendMessageToRAG, fetchChatHistory } from "./lib/api";
-import { SourceReference } from "./components/SourceCard";
+import { sendMessageToRAG, ChatModel, DEFAULT_MODEL } from "./lib/api";
 import sabancıLogo from "./assets/sabanci_logo.png";
 
 export default function App() {
@@ -25,65 +24,11 @@ export default function App() {
   const [currentConversationId, setCurrentConversationId] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isTyping, setIsTyping] = useState(false);
-
-  useEffect(() => {
-    const loadHistory = async () => {
-      // Only fetch if the user is logged in
-      if (isLoggedIn) {
-        try {
-          // Fetch data from the backend
-          const history = await fetchChatHistory();
-          console.log("[History] Raw response from backend:", history);
-
-          // Normalize backend response:
-          // 1. Convert numeric ids to strings (backend: number, frontend state: string)
-          // 2. Convert ISO timestamps to human-readable labels so the sidebar
-          //    grouping logic (which checks for "Today" / "day ago") works correctly
-          const normalize = (isoString: string): string => {
-            const date = new Date(isoString);
-            if (isNaN(date.getTime())) return isoString; // not a valid date, pass through
-            const now = new Date();
-            const diffDays = Math.floor(
-              (now.setHours(0,0,0,0) - new Date(date).setHours(0,0,0,0)) /
-              (1000 * 60 * 60 * 24)
-            );
-            if (diffDays === 0) return `Today at ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-            if (diffDays === 1) return "1 day ago";
-            if (diffDays < 7)   return `${diffDays} days ago`;
-            return date.toLocaleDateString();
-          };
-
-          const mapped: ConversationData[] = (history as any[]).map((conv) => ({
-            ...conv,
-            id: String(conv.id),               // number → string
-            timestamp: normalize(conv.timestamp),
-            messages: (conv.messages ?? []).map((msg: any) => ({
-              ...msg,
-              id: String(msg.id),              // number → string
-            })),
-          }));
-
-          console.log("[History] Mapped conversations:", mapped);
-          setConversations(mapped);
-
-          // Only select a conversation if history is non-empty
-          if (mapped.length > 0) {
-            setCurrentConversationId(mapped[0].id);
-          }
-        } catch (error) {
-          console.error("[History] Error loading chat history:", error);
-        }
-      }
-    };
-    
-    loadHistory();
-  }, [isLoggedIn]); // Dependency: Re-run when 'isLoggedIn' changes
+  const [selectedModel, setSelectedModel] = useState<ChatModel>(DEFAULT_MODEL);
 
   const handleLogin = (email: string, name: string, isAdmin: boolean) => {
-    
     setUser({ email, name, isAdmin });
     setIsLoggedIn(true);
-    
   };
 
   const handleLogout = () => {
@@ -102,13 +47,28 @@ export default function App() {
 
   const currentConversation = conversations.find((c) => c.id === currentConversationId);
 
-  // --- UPDATED SEND MESSAGE FUNCTION ---
+  // --- SEND MESSAGE FUNCTION ---
   const handleSendMessage = async (content: string) => {
-    if (!currentConversationId) return;
+    // Use a local variable so React state async updates don't cause stale reads
+    let convId = currentConversationId;
 
-    // 1. Immediately display the User's message in the UI
+    // Auto-create a new conversation if none is active
+    if (!convId) {
+      convId = `new-${Date.now()}`;
+      const newConv: ConversationData = {
+        id: convId,
+        title: content.slice(0, 40) || "New Conversation",
+        timestamp: "Just now",
+        preview: content.slice(0, 50) + (content.length > 50 ? "..." : ""),
+        messages: [],
+      };
+      setConversations((prev) => [newConv, ...prev]);
+      setCurrentConversationId(convId);
+    }
+
+    // 1. Immediately display the user's message in the UI
     const newUserMessage: Message = {
-      id: `${currentConversationId}-${Date.now()}`,
+      id: `${convId}-${Date.now()}`,
       role: "user",
       content,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
@@ -116,7 +76,7 @@ export default function App() {
 
     setConversations((prev) =>
       prev.map((conv) =>
-        conv.id === currentConversationId
+        conv.id === convId
           ? {
               ...conv,
               messages: [...conv.messages, newUserMessage],
@@ -127,60 +87,51 @@ export default function App() {
       )
     );
 
-    // 2. Start loading state (shows the thinking animation)
+    // 2. Show typing indicator
     setIsTyping(true);
 
     try {
-      // 3. Parse numeric conversation ID if possible (backend expects number)
-      const numericConvId = currentConversationId.startsWith('new-')
+      // 3. Derive numeric conversation ID for the backend (omit for new conversations)
+      const numericConvId = convId.startsWith("new-")
         ? undefined
-        : parseInt(currentConversationId, 10) || undefined;
+        : parseInt(convId, 10) || undefined;
 
-      // 4. SEND API REQUEST (Connects to Real Backend)
-      const data = await sendMessageToRAG(content, numericConvId);
+      // 4. Send request to backend
+      const data = await sendMessageToRAG(content, selectedModel, numericConvId);
 
-      // 5. CREATE AI RESPONSE OBJECT
+      // 5. Build the assistant message
       const aiResponse: Message = {
-        id: `${currentConversationId}-${Date.now()}-ai`,
+        id: `${convId}-${Date.now()}-ai`,
         role: "assistant",
         content: data.answer,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-
-        // Map Backend response to Frontend 'SourceReference' type
         sources: data.sources?.map((src) => ({
-            chunk_id: src.chunk_id,
-            title: src.title,
-            excerpt: src.excerpt,
-            score: src.score,
-            url: src.url
+          chunk_id: src.chunk_id,
+          title: src.title,
+          excerpt: src.excerpt,
+          score: src.score,
+          url: src.url,
         })) || [],
-
-        confidence: data.confidence || 0.95,
+        confidence: data.confidence ?? 0.95,
       };
 
-      // 6. Update UI with the AI's answer and sync conversation ID from backend
-      const backendConvId = data.conversation_id?.toString() || currentConversationId;
+      // 6. Sync the backend-assigned conversation ID and append the AI reply
+      const backendConvId = data.conversation_id?.toString() || convId;
 
       setConversations((prev) =>
         prev.map((conv) =>
-          conv.id === currentConversationId
-            ? {
-                ...conv,
-                id: backendConvId,
-                messages: [...conv.messages, aiResponse],
-              }
+          conv.id === convId
+            ? { ...conv, id: backendConvId, messages: [...conv.messages, aiResponse] }
             : conv
         )
       );
 
-      // Update current conversation ID if backend assigned a new one
-      if (backendConvId !== currentConversationId) {
+      if (backendConvId !== convId) {
         setCurrentConversationId(backendConvId);
       }
     } catch (error) {
       console.error("Failed to send message:", error);
     } finally {
-      // Always stop the loading animation
       setIsTyping(false);
     }
   };
@@ -363,7 +314,12 @@ export default function App() {
               </ScrollArea>
 
               {/* Input Area */}
-              <ChatInput onSend={handleSendMessage} disabled={isTyping} />
+              <ChatInput
+                onSend={handleSendMessage}
+                disabled={isTyping}
+                selectedModel={selectedModel}
+                onModelChange={setSelectedModel}
+              />
             </div>
 
             {/* Right Sidebar - Resources & Actions */}
