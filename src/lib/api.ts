@@ -41,6 +41,25 @@ export interface ChatRequest {
   user_id?: string;
 }
 
+export interface ChatHistoryMessage {
+  id: number | string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+  sources?: SourceReference[];
+  confidence?: number;
+  category?: string;
+}
+
+export interface ChatHistoryConversation {
+  id: number | string;
+  title: string;
+  timestamp: string;
+  preview: string;
+  messages?: ChatHistoryMessage[];
+  category?: string;
+}
+
 // Function to send message to Backend RAG system
 export const sendMessageToRAG = async (
   message: string,
@@ -50,6 +69,11 @@ export const sendMessageToRAG = async (
   const payload: ChatRequest = { query: message, model };
   if (conversationId) payload.conversation_id = conversationId;
   const response = await api.post("/chat", payload);
+  return response.data;
+};
+
+export const fetchChatHistory = async (): Promise<ChatHistoryConversation[]> => {
+  const response = await api.get("/chat/history");
   return response.data;
 };
 
