@@ -1,5 +1,5 @@
 import { Card } from "./ui/card";
-import { FileText, ExternalLink, CheckCircle2 } from "lucide-react";
+import { FileText, ExternalLink } from "lucide-react";
 
 // Define the source reference type matching backend schema
 export interface SourceReference {
@@ -16,9 +16,6 @@ interface SourceCardProps {
 }
 
 export function SourceCard({ source, index }: SourceCardProps) {
-  // Helper to format the score as percentage
-  const matchPercentage = source.score ? Math.round(source.score * 100) : 0;
-
   const handleClick = () => {
     if (source.url) {
       window.open(source.url, '_blank', 'noopener,noreferrer');
@@ -38,29 +35,19 @@ export function SourceCard({ source, index }: SourceCardProps) {
 
         {/* Content Section */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start gap-2">
             <h4 className="text-sm font-medium text-foreground line-clamp-1 group-hover:text-primary transition-colors" title={source.title}>
               {index !== undefined ? `[${index + 1}] ` : ""}{source.title}
             </h4>
-
-            {/* Score Badge */}
-            {source.score !== undefined && (
-              <div className="flex items-center gap-1 text-[10px] bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded-full shrink-0">
-                <CheckCircle2 className="h-3 w-3" />
-                {matchPercentage}%
-              </div>
-            )}
           </div>
 
-          {/* Metadata Row */}
-          <div className="flex items-center gap-3 mt-1.5">
-            <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-              ID: {source.chunk_id}
-            </span>
-            {source.url && (
-              <ExternalLink className="h-3 w-3 text-muted-foreground" />
-            )}
-          </div>
+          {/* Metadata Row — show link hint only when URL is available */}
+          {source.url && (
+            <div className="flex items-center gap-1 mt-1.5 text-[10px] text-muted-foreground">
+              <ExternalLink className="h-3 w-3" />
+              <span>Kaynağa git</span>
+            </div>
+          )}
 
           {/* Excerpt preview */}
           {source.excerpt && (

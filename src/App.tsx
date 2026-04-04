@@ -60,6 +60,8 @@ export default function App() {
             messages: (conv.messages ?? []).map((msg: any) => ({
               ...msg,
               id: String(msg.id),              // number → string
+              sources: msg.sources || [],      // Include sources from backend
+              confidence: msg.confidence,      // Include confidence score
             })),
           }));
 
