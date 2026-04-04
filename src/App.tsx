@@ -24,78 +24,73 @@ export default function App() {
   const [currentConversationId, setCurrentConversationId] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isTyping, setIsTyping] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<ChatModel>(DEFAULT_MODEL);
+
+  useEffect(() => {
+    const loadHistory = async () => {
+      // Only fetch if the user is logged in
+      if (isLoggedIn) {
+        try {
+          // Fetch data from the backend
+          const history = await fetchChatHistory();
+          console.log("[History] Raw response from backend:", history);
+
+          // Normalize backend response:
+          // 1. Convert numeric ids to strings (backend: number, frontend state: string)
+          // 2. Convert ISO timestamps to human-readable labels so the sidebar
+          //    grouping logic (which checks for "Today" / "day ago") works correctly
+          const normalize = (isoString: string): string => {
+            const date = new Date(isoString);
+            if (isNaN(date.getTime())) return isoString; // not a valid date, pass through
+            const now = new Date();
+            const diffDays = Math.floor(
+              (now.setHours(0,0,0,0) - new Date(date).setHours(0,0,0,0)) /
+              (1000 * 60 * 60 * 24)
+            );
+            if (diffDays === 0) return `Today at ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+            if (diffDays === 1) return "1 day ago";
+            if (diffDays < 7)   return `${diffDays} days ago`;
+            return date.toLocaleDateString();
+          };
+
+          const mapped: ConversationData[] = (history as any[]).map((conv) => ({
+            ...conv,
+            id: String(conv.id),               // number → string
+            timestamp: normalize(conv.timestamp),
+            messages: (conv.messages ?? []).map((msg: any) => ({
+              ...msg,
+              id: String(msg.id),              // number → string
+              sources: msg.sources || [],      // Include sources from backend
+              confidence: msg.confidence,      // Include confidence score
+            })),
+          }));
+
+          console.log("[History] Mapped conversations:", mapped);
+          setConversations(mapped);
+
+          // Only select a conversation if history is non-empty
+          if (mapped.length > 0) {
+            setCurrentConversationId(mapped[0].id);
+          }
+        } catch (error) {
+          console.error("[History] Error loading chat history:", error);
+        }
+      }
+    };
+    
+    loadHistory();
+  }, [isLoggedIn]); // Dependency: Re-run when 'isLoggedIn' changes
 
   const handleLogin = (email: string, name: string, isAdmin: boolean) => {
+    
     setUser({ email, name, isAdmin });
     setIsLoggedIn(true);
+    
   };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
     setUser(null);
-    setConversations([]);
-    setCurrentConversationId("");
   };
-
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (!isLoggedIn || user?.isAdmin) {
-        return;
-      }
-
-      try {
-        const history = await fetchChatHistory();
-        console.log("[History] Raw response from backend:", history);
-
-        // Convert backend timestamps into sidebar-friendly relative labels.
-        const normalizeTimestamp = (rawTimestamp: string): string => {
-          const date = new Date(rawTimestamp);
-          if (isNaN(date.getTime())) {
-            return rawTimestamp;
-          }
-
-          const now = new Date();
-          const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-          const startOfMessageDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-          const diffDays = Math.floor((startOfToday - startOfMessageDay) / (1000 * 60 * 60 * 24));
-
-          if (diffDays === 0) {
-            return `Today at ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-          }
-          if (diffDays === 1) {
-            return "1 day ago";
-          }
-          if (diffDays < 7) {
-            return `${diffDays} days ago`;
-          }
-
-          return date.toLocaleDateString();
-        };
-
-        const mapped: ConversationData[] = (history as any[]).map((conv) => ({
-          ...conv,
-          id: String(conv.id),
-          timestamp: normalizeTimestamp(conv.timestamp),
-          messages: (conv.messages ?? []).map((msg: any) => ({
-            ...msg,
-            id: String(msg.id),
-          })),
-        }));
-
-        console.log("[History] Mapped conversations:", mapped);
-        setConversations(mapped);
-
-        if (mapped.length > 0) {
-          setCurrentConversationId(mapped[0].id);
-        }
-      } catch (error) {
-        console.error("[History] Error loading chat history:", error);
-      }
-    };
-
-    loadHistory();
-  }, [isLoggedIn, user?.isAdmin]);
 
   if (!isLoggedIn) {
     return <LoginPage onLogin={handleLogin} />;
