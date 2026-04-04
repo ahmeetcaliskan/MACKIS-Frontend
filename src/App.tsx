@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect} from "react";
 import { SidebarProvider, SidebarTrigger } from "./components/ui/sidebar";
 import { ConversationSidebar } from "./components/ConversationSidebar";
-import { ChatMessage } from "./components/ChatMessage";
 import { ChatInput } from "./components/ChatInput";
 import { ScrollArea } from "./components/ui/scroll-area";
 import { Badge } from "./components/ui/badge";
@@ -11,26 +10,82 @@ import { QuickActions } from "./components/QuickActions";
 import { KnowledgeBaseStats } from "./components/KnowledgeBaseStats";
 import { LoginPage } from "./components/LoginPage";
 import { AdminDashboard } from "./components/AdminDashboard";
-import { mockConversations, getMockResponse, Message, ConversationData, categories } from "./lib/mockData";
-import { GraduationCap, Sparkles, Search, Brain, LogOut } from "lucide-react";
+import {  Message, ConversationData, categories } from "./lib/mockData";
+import { Sparkles, Search, Brain, LogOut } from "lucide-react";
 import { Card } from "./components/ui/card";
-import { sendMessageToRAG } from "./lib/api"; 
-
+import { ChatMessage,} from "./components/ChatMessage"; 
+import { sendMessageToRAG, fetchChatHistory } from "./lib/api";
+import { SourceReference } from "./components/SourceCard";
 import sabancıLogo from "./assets/sabanci_logo.png";
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<{ email: string; name: string; isAdmin: boolean } | null>(null);
-  const [conversations, setConversations] = useState<ConversationData[]>(mockConversations);
-  const [currentConversationId, setCurrentConversationId] = useState<string>(mockConversations[0].id);
+  const [conversations, setConversations] = useState<ConversationData[]>([]); 
+  const [currentConversationId, setCurrentConversationId] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isTyping, setIsTyping] = useState(false);
 
-  const handleLogin = (email: string, name: string) => {
-    // Check if user is admin (using email pattern)
-    const isAdmin = email.includes("admin") || email.includes("@admin.");
+  useEffect(() => {
+    const loadHistory = async () => {
+      // Only fetch if the user is logged in
+      if (isLoggedIn) {
+        try {
+          // Fetch data from the backend
+          const history = await fetchChatHistory();
+          console.log("[History] Raw response from backend:", history);
+
+          // Normalize backend response:
+          // 1. Convert numeric ids to strings (backend: number, frontend state: string)
+          // 2. Convert ISO timestamps to human-readable labels so the sidebar
+          //    grouping logic (which checks for "Today" / "day ago") works correctly
+          const normalize = (isoString: string): string => {
+            const date = new Date(isoString);
+            if (isNaN(date.getTime())) return isoString; // not a valid date, pass through
+            const now = new Date();
+            const diffDays = Math.floor(
+              (now.setHours(0,0,0,0) - new Date(date).setHours(0,0,0,0)) /
+              (1000 * 60 * 60 * 24)
+            );
+            if (diffDays === 0) return `Today at ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+            if (diffDays === 1) return "1 day ago";
+            if (diffDays < 7)   return `${diffDays} days ago`;
+            return date.toLocaleDateString();
+          };
+
+          const mapped: ConversationData[] = (history as any[]).map((conv) => ({
+            ...conv,
+            id: String(conv.id),               // number → string
+            timestamp: normalize(conv.timestamp),
+            messages: (conv.messages ?? []).map((msg: any) => ({
+              ...msg,
+              id: String(msg.id),              // number → string
+              sources: msg.sources || [],      // Include sources from backend
+              confidence: msg.confidence,      // Include confidence score
+            })),
+          }));
+
+          console.log("[History] Mapped conversations:", mapped);
+          setConversations(mapped);
+
+          // Only select a conversation if history is non-empty
+          if (mapped.length > 0) {
+            setCurrentConversationId(mapped[0].id);
+          }
+        } catch (error) {
+          console.error("[History] Error loading chat history:", error);
+        }
+      }
+    };
+    
+    loadHistory();
+  }, [isLoggedIn]); // Dependency: Re-run when 'isLoggedIn' changes
+
+  const handleLogin = (email: string, name: string, isAdmin: boolean) => {
+    
     setUser({ email, name, isAdmin });
     setIsLoggedIn(true);
+    
   };
 
   const handleLogout = () => {
@@ -49,11 +104,11 @@ export default function App() {
 
   const currentConversation = conversations.find((c) => c.id === currentConversationId);
 
-  // Fonksiyonun başına 'async' eklemeyi unutma!
+  // --- UPDATED SEND MESSAGE FUNCTION ---
   const handleSendMessage = async (content: string) => {
     if (!currentConversationId) return;
 
-    // 1. Kullanıcının mesajını hemen ekrana bas (Burası aynen kalıyor)
+    // 1. Immediately display the User's message in the UI
     const newUserMessage: Message = {
       id: `${currentConversationId}-${Date.now()}`,
       role: "user",
@@ -74,43 +129,64 @@ export default function App() {
       )
     );
 
-    // 2. Loading durumunu başlat
+    // 2. Start loading state (shows the thinking animation)
     setIsTyping(true);
 
-    // 3. ESKİ setTimeout KISMI YERİNE BU GELECEK:
     try {
-      // API'ye isteği gönder ve cevabı bekle
-      const data = await sendMessageToRAG(content);
+      // 3. Parse numeric conversation ID if possible (backend expects number)
+      const numericConvId = currentConversationId.startsWith('new-')
+        ? undefined
+        : parseInt(currentConversationId, 10) || undefined;
 
+      // 4. SEND API REQUEST (Connects to Real Backend)
+      const data = await sendMessageToRAG(content, numericConvId);
+
+      // 5. CREATE AI RESPONSE OBJECT
       const aiResponse: Message = {
         id: `${currentConversationId}-${Date.now()}-ai`,
         role: "assistant",
-        content: data.answer, // Backend'den dönen cevap
+        content: data.answer,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        sources: data.sources || [], // Kaynaklar
+
+        // Map Backend response to Frontend 'SourceReference' type
+        sources: data.sources?.map((src) => ({
+            chunk_id: src.chunk_id,
+            title: src.title,
+            excerpt: src.excerpt,
+            score: src.score,
+            url: src.url
+        })) || [],
+
         confidence: data.confidence || 0.95,
-        category: "general",
       };
 
-      // AI cevabını ekrana bas
+      // 6. Update UI with the AI's answer and sync conversation ID from backend
+      const backendConvId = data.conversation_id?.toString() || currentConversationId;
+
       setConversations((prev) =>
         prev.map((conv) =>
           conv.id === currentConversationId
-            ? { 
-                ...conv, 
+            ? {
+                ...conv,
+                id: backendConvId,
                 messages: [...conv.messages, aiResponse],
               }
             : conv
         )
       );
+
+      // Update current conversation ID if backend assigned a new one
+      if (backendConvId !== currentConversationId) {
+        setCurrentConversationId(backendConvId);
+      }
     } catch (error) {
-      console.error("Hata oluştu:", error);
-      // İstersen buraya kullanıcıya hata mesajı gösteren bir kod ekleyebilirsin
+      console.error("Failed to send message:", error);
     } finally {
-      // Her durumda (hata olsa bile) loading'i durdur
+      // Always stop the loading animation
       setIsTyping(false);
     }
   };
+  // --- END OF FUNCTION ---
 
   const handleNewConversation = () => {
     const newConv: ConversationData = {

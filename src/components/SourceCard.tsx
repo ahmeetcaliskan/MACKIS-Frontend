@@ -1,65 +1,60 @@
 import { Card } from "./ui/card";
-import { Badge } from "./ui/badge";
-import { FileText, Globe, BookOpen, Database, ExternalLink } from "lucide-react";
-import { SourceReference } from "../lib/mockData";
+import { FileText, ExternalLink } from "lucide-react";
+
+// Define the source reference type matching backend schema
+export interface SourceReference {
+  chunk_id: number;
+  title: string;
+  excerpt: string;
+  score?: number;
+  url?: string;
+}
 
 interface SourceCardProps {
   source: SourceReference;
-  index: number;
+  index?: number;
 }
 
 export function SourceCard({ source, index }: SourceCardProps) {
-  const getIcon = () => {
-    switch (source.type) {
-      case "pdf":
-        return <FileText className="h-4 w-4" />;
-      case "webpage":
-        return <Globe className="h-4 w-4" />;
-      case "handbook":
-        return <BookOpen className="h-4 w-4" />;
-      case "database":
-        return <Database className="h-4 w-4" />;
-    }
-  };
-
-  const getTypeColor = () => {
-    switch (source.type) {
-      case "pdf":
-        return "bg-red-500/10 text-red-700 dark:text-red-400";
-      case "webpage":
-        return "bg-blue-500/10 text-blue-700 dark:text-blue-400";
-      case "handbook":
-        return "bg-green-500/10 text-green-700 dark:text-green-400";
-      case "database":
-        return "bg-purple-500/10 text-purple-700 dark:text-purple-400";
+  const handleClick = () => {
+    if (source.url) {
+      window.open(source.url, '_blank', 'noopener,noreferrer');
     }
   };
 
   return (
-    <Card className="p-3 hover:bg-accent/50 transition-colors cursor-pointer group">
-      <div className="flex items-start gap-2">
-        <div className="mt-0.5 text-muted-foreground">{getIcon()}</div>
+    <Card
+      className={`p-3 hover:bg-muted/50 transition-colors border shadow-sm group bg-card ${source.url ? 'cursor-pointer' : ''}`}
+      onClick={source.url ? handleClick : undefined}
+    >
+      <div className="flex items-start gap-3">
+        {/* Icon Section */}
+        <div className="mt-1 bg-blue-100 dark:bg-blue-900/30 p-1.5 rounded-md text-blue-600 dark:text-blue-400">
+          <FileText className="h-4 w-4" />
+        </div>
+
+        {/* Content Section */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2 mb-1">
-            <h4 className="text-sm line-clamp-1 group-hover:text-primary transition-colors">
-              [{index}] {source.title}
+          <div className="flex items-start gap-2">
+            <h4 className="text-sm font-medium text-foreground line-clamp-1 group-hover:text-primary transition-colors" title={source.title}>
+              {index !== undefined ? `[${index + 1}] ` : ""}{source.title}
             </h4>
-            {source.url && <ExternalLink className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />}
           </div>
-          <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
-            {source.excerpt}
-          </p>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Badge variant="outline" className={`text-xs px-1.5 py-0 ${getTypeColor()}`}>
-              {source.type.toUpperCase()}
-            </Badge>
-            {source.department && (
-              <span className="text-xs text-muted-foreground">{source.department}</span>
-            )}
-            {source.lastUpdated && (
-              <span className="text-xs text-muted-foreground">• {source.lastUpdated}</span>
-            )}
-          </div>
+
+          {/* Metadata Row — show link hint only when URL is available */}
+          {source.url && (
+            <div className="flex items-center gap-1 mt-1.5 text-[10px] text-muted-foreground">
+              <ExternalLink className="h-3 w-3" />
+              <span>Kaynağa git</span>
+            </div>
+          )}
+
+          {/* Excerpt preview */}
+          {source.excerpt && (
+            <p className="mt-2 text-xs text-muted-foreground line-clamp-2 italic border-l-2 pl-2">
+              "{source.excerpt.substring(0, 150)}..."
+            </p>
+          )}
         </div>
       </div>
     </Card>
