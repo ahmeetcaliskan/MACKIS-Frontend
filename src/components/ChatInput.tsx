@@ -30,7 +30,7 @@ export function ChatInput({ onSend, disabled, selectedModel, onModelChange }: Ch
     }
   };
 
-  const currentLabel = MODEL_OPTIONS.find((m) => m.value === selectedModel)?.label ?? selectedModel;
+  const currentOption = MODEL_OPTIONS.find((m) => m.value === selectedModel);
 
   return (
     <form onSubmit={handleSubmit} className="border-t bg-background p-4 space-y-2">
@@ -52,11 +52,9 @@ export function ChatInput({ onSend, disabled, selectedModel, onModelChange }: Ch
           </select>
           <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
         </div>
-        <span className="text-[10px] text-muted-foreground/70">
-          {currentLabel === "Llama 3.1" && "Default · Local"}
-          {currentLabel === "Qwen 2.5 7B" && "Lightweight · Local"}
-          {currentLabel === "GPT OSS 120B" && "Powerful · Cloud"}
-        </span>
+        {currentOption?.hint && (
+          <span className="text-[10px] text-muted-foreground/70">{currentOption.hint}</span>
+        )}
       </div>
 
       {/* Text input row */}

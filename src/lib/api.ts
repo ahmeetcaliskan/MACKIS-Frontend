@@ -1,18 +1,19 @@
 import api from "../api/axios";
 
-// Enum of accepted model values — must match backend ChatModel enum exactly
+// NOTE: Model is sent to backend but currently backend reads CHAT_MODEL from .env.
+// This wiring stays in place so model switching can be enabled server-side later.
 export type ChatModel =
-  | "llama3.1:latest"
+  | "qwen3-32b"
   | "qwen2.5:7b"
-  | "gpt-oss:120b-cloud";
+  | "llama3.1:latest";
 
-export const MODEL_OPTIONS: { label: string; value: ChatModel }[] = [
-  { label: "Llama 3.1", value: "llama3.1:latest" },
-  { label: "Qwen 2.5 7B", value: "qwen2.5:7b" },
-  { label: "GPT OSS 120B", value: "gpt-oss:120b-cloud" },
+export const MODEL_OPTIONS: { label: string; value: ChatModel; hint?: string }[] = [
+  { label: "Qwen 3 (32B)",  value: "qwen3-32b",       hint: "Default · Cloud" },
+  { label: "Qwen 2.5 7B",   value: "qwen2.5:7b",       hint: "Lightweight · Local" },
+  { label: "Llama 3.1",     value: "llama3.1:latest",   hint: "Fast · Local" },
 ];
 
-export const DEFAULT_MODEL: ChatModel = "llama3.1:latest";
+export const DEFAULT_MODEL: ChatModel = "qwen3-32b";
 
 // Define the source reference type from backend
 export interface SourceReference {

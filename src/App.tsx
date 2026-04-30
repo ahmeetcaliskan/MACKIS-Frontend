@@ -10,20 +10,21 @@ import { QuickActions } from "./components/QuickActions";
 import { KnowledgeBaseStats } from "./components/KnowledgeBaseStats";
 import { LoginPage } from "./components/LoginPage";
 import { AdminDashboard } from "./components/AdminDashboard";
-import {  Message, ConversationData, categories } from "./lib/mockData";
+import { Message, ConversationData, categories } from "./lib/mockData";
 import { Sparkles, Search, Brain, LogOut } from "lucide-react";
 import { Card } from "./components/ui/card";
-import { ChatMessage,} from "./components/ChatMessage"; 
+import { ChatMessage, } from "./components/ChatMessage";
 import { sendMessageToRAG, fetchChatHistory, ChatModel, DEFAULT_MODEL } from "./lib/api";
 import sabancıLogo from "./assets/sabanci_logo.png";
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<{ email: string; name: string; isAdmin: boolean } | null>(null);
-  const [conversations, setConversations] = useState<ConversationData[]>([]); 
+  const [conversations, setConversations] = useState<ConversationData[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isTyping, setIsTyping] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<ChatModel>(DEFAULT_MODEL);
 
   useEffect(() => {
     const loadHistory = async () => {
@@ -43,12 +44,12 @@ export default function App() {
             if (isNaN(date.getTime())) return isoString; // not a valid date, pass through
             const now = new Date();
             const diffDays = Math.floor(
-              (now.setHours(0,0,0,0) - new Date(date).setHours(0,0,0,0)) /
+              (now.setHours(0, 0, 0, 0) - new Date(date).setHours(0, 0, 0, 0)) /
               (1000 * 60 * 60 * 24)
             );
             if (diffDays === 0) return `Today at ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
             if (diffDays === 1) return "1 day ago";
-            if (diffDays < 7)   return `${diffDays} days ago`;
+            if (diffDays < 7) return `${diffDays} days ago`;
             return date.toLocaleDateString();
           };
 
@@ -76,15 +77,15 @@ export default function App() {
         }
       }
     };
-    
+
     loadHistory();
   }, [isLoggedIn]); // Dependency: Re-run when 'isLoggedIn' changes
 
   const handleLogin = (email: string, name: string, isAdmin: boolean) => {
-    
+
     setUser({ email, name, isAdmin });
     setIsLoggedIn(true);
-    
+
   };
 
   const handleLogout = () => {
@@ -134,11 +135,11 @@ export default function App() {
       prev.map((conv) =>
         conv.id === convId
           ? {
-              ...conv,
-              messages: [...conv.messages, newUserMessage],
-              preview: content.slice(0, 50) + (content.length > 50 ? "..." : ""),
-              timestamp: "Just now",
-            }
+            ...conv,
+            messages: [...conv.messages, newUserMessage],
+            preview: content.slice(0, 50) + (content.length > 50 ? "..." : ""),
+            timestamp: "Just now",
+          }
           : conv
       )
     );
@@ -210,8 +211,8 @@ export default function App() {
     setCurrentConversationId(id);
   };
 
-  const filteredConversations = selectedCategory === "all" 
-    ? conversations 
+  const filteredConversations = selectedCategory === "all"
+    ? conversations
     : conversations.filter(c => c.category === selectedCategory);
 
   return (
@@ -235,9 +236,9 @@ export default function App() {
           <header className="border-b bg-card px-6 py-3 flex items-center gap-4 shrink-0">
             <SidebarTrigger />
             <div className="flex items-center gap-3 flex-1 min-w-0">
-              <img 
-                src={sabancıLogo} 
-                alt="Sabancı Universitesi" 
+              <img
+                src={sabancıLogo}
+                alt="Sabancı Universitesi"
                 className="h-8 w-auto shrink-0"
               />
               <div className="flex-1 min-w-0">
@@ -280,7 +281,7 @@ export default function App() {
                         role={message.role}
                         content={message.content}
                         timestamp={message.timestamp}
-                        sources={message.sources || []}      
+                        sources={message.sources || []}
                         confidence={message.confidence || 0}
                       />
                     ))}
@@ -306,9 +307,9 @@ export default function App() {
                 ) : (
                   <div className="flex items-center justify-center h-full p-8">
                     <div className="text-center max-w-2xl space-y-6">
-                      <img 
-                        src={sabancıLogo} 
-                        alt="Sabancı Universitesi" 
+                      <img
+                        src={sabancıLogo}
+                        alt="Sabancı Universitesi"
                         className="h-20 w-auto mx-auto"
                       />
                       <div>
@@ -318,7 +319,7 @@ export default function App() {
                           I have access to 2,847+ university documents and can provide accurate, source-backed answers.
                         </p>
                       </div>
-                      
+
                       <Card className="p-4 bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
                         <div className="flex items-start gap-3 text-left">
                           <Search className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
@@ -382,14 +383,14 @@ export default function App() {
             <div className="w-80 border-l bg-card/50 p-4 space-y-4 overflow-y-auto shrink-0 hidden xl:block">
               <KnowledgeBaseStats />
               <QuickActions />
-              
+
               <Card className="p-4">
                 <h3 className="mb-3">Popular Topics</h3>
                 <div className="flex flex-wrap gap-2">
                   {categories.slice(1).map((cat) => (
-                    <Badge 
-                      key={cat.id} 
-                      variant="outline" 
+                    <Badge
+                      key={cat.id}
+                      variant="outline"
                       className="cursor-pointer hover:bg-accent"
                       onClick={() => setSelectedCategory(cat.id)}
                     >
